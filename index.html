@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Desayunos · Haz tu pedido</title>
+  <style>
+    /* ============================================================
+       ESTILOS — diseño mobile-first (la mayoría pedirá desde el celular)
+       ============================================================ */
+    :root {
+      --color-fondo: #fffaf3;
+      --color-tarjeta: #ffffff;
+      --color-primario: #e07b39;   /* naranja desayuno */
+      --color-primario-osc: #c4652a;
+      --color-texto: #2d2a26;
+      --color-texto-suave: #8a8378;
+      --color-exito: #2e7d32;
+      --color-error: #c62828;
+      --radio: 14px;
+      --sombra: 0 2px 10px rgba(45, 42, 38, .08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--color-fondo);
+      color: var(--color-texto);
+      padding-bottom: 120px; /* espacio para la barra fija del carrito */
+    }
+    header {
+      background: linear-gradient(135deg, var(--color-primario), #f0a35e);
+      color: #fff;
+      padding: 28px 20px 22px;
+      text-align: center;
+    }
+    header h1 { font-size: 1.7rem; letter-spacing: .5px; }
+    header p  { opacity: .92; margin-top: 6px; font-size: .95rem; }
+
+    main { max-width: 640px; margin: 0 auto; padding: 16px; }
+
+    /* Datos del cliente */
+    .panel {
+      background: var(--color-tarjeta);
+      border-radius: var(--radio);
+      box-shadow: var(--sombra);
+      padding: 16px;
+      margin: 14px 0;
+    }
+    .panel label { display: block; font-weight: 600; font-size: .9rem; margin: 10px 0 4px; }
+    .panel input[type="text"], .panel input[type="date"], .panel textarea {
+      width: 100%;
+      padding: 11px 12px;
+      border: 1.5px solid #e5ded4;
+      border-radius: 10px;
+      font-size: 1rem;
+      background: #fffdf9;
+    }
+    .panel input:focus, .panel textarea:focus { outline: 2px solid var(--color-primario); border-color: transparent; }
+    .check-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: .95rem; }
+    .check-row input { width: 20px; height: 20px; accent-color: var(--color-primario); }
+
+    /* Menú */
+    h2.categoria {
+      margin: 26px 4px 10px;
+      font-size: 1.15rem;
+      color: var(--color-primario-osc);
+      border-bottom: 2px dashed #eadfce;
+      padding-bottom: 6px;
+    }
+    .producto {
+      background: var(--color-tarjeta);
+      border-radius: var(--radio);
+      box-shadow: var(--sombra);
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .producto .info { flex: 1; }
+    .producto .nombre { font-weight: 700; font-size: 1rem; }
+    .producto .descripcion { font-size: .82rem; color: var(--color-texto-suave); margin-top: 2px; }
+    .producto .precio { font-size: .92rem; color: var(--color-primario-osc); font-weight: 700; margin-top: 4px; }
+
+    /* Controles de cantidad  (− 2 +) */
+    .cantidad { display: flex; align-items: center; gap: 10px; }
+    .cantidad button {
+      width: 36px; height: 36px;
+      border: none; border-radius: 50%;
+      background: #f6e8d8; color: var(--color-primario-osc);
+      font-size: 1.3rem; font-weight: 700;
+      cursor: pointer;
+      transition: transform .1s;
+    }
+    .cantidad button:active { transform: scale(.9); }
+    .cantidad button.mas { background: var(--color-primario); color: #fff; }
+    .cantidad .num { min-width: 22px; text-align: center; font-weight: 700; font-size: 1.05rem; }
+
+    /* Barra fija inferior con el total */
+    .barra-carrito {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--color-tarjeta);
+      box-shadow: 0 -4px 16px rgba(45, 42, 38, .12);
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    }
+    .barra-inner { max-width: 640px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+    .barra-total { flex: 1; }
+    .barra-total .etiqueta { font-size: .78rem; color: var(--color-texto-suave); }
+    .barra-total .valor { font-size: 1.35rem; font-weight: 800; }
+    .btn-enviar {
+      background: var(--color-primario); color: #fff;
+      border: none; border-radius: 12px;
+      padding: 14px 26px;
+      font-size: 1.05rem; font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-enviar:disabled { background: #d8cfc2; cursor: not-allowed; }
+
+    /* Mensajes de estado (éxito / error) */
+    .estado {
+      position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+      max-width: 90%; width: 420px;
+      padding: 14px 18px; border-radius: 12px;
+      color: #fff; font-weight: 600; font-size: .95rem;
+      box-shadow: var(--sombra);
+      z-index: 50;
+      display: none;
+    }
+    .estado.exito { background: var(--color-exito); display: block; }
+    .estado.error { background: var(--color-error); display: block; }
+  </style>
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ⚙️ CONFIGURACIÓN DEL NEGOCIO — ÚNICO BLOQUE QUE DEBES EDITAR
+       Para reutilizar esta app en otro negocio, cambia solo este objeto:
+       nombre, WhatsApp, URL del backend y el menú con sus precios.
+       ══════════════════════════════════════════════════════════════ -->
+  <script>
+    const CONFIG = {
+      // Nombre que aparece en el encabezado y en el mensaje de WhatsApp
+      nombreNegocio: "Desayunos",
+      lema: "Pide tu desayuno y te lo llevamos 🛵",
+
+      // Número de WhatsApp que RECIBE los pedidos.
+      // Formato internacional SIN el signo +. Colombia = 57 + celular.
+      whatsapp: "573104001027",
+
+      // URL del Web App de Google Apps Script (backend que guarda en Sheets).
+      // La obtienes al desplegar el script — ver GUIA_DE_DESPLIEGUE.md, paso 3.
+      urlBackend: "https://script.google.com/macros/s/AKfycby2aNEcgz3r5yt0EYeS1XqtvQpt3dhAXFJucsrAcDPhNMiO1YqmImVI9Y4CpFMvBdaY/exec",
+
+      // Configuración regional para mostrar precios ($ 3.500)
+      region: "es-CO",
+      moneda: "COP",
+
+      // 🍳 LA CARTA. Cada producto necesita: id único, nombre y precio.
+      // "descripcion" es opcional. Para cambiar la carta, edita solo esto.
+      menu: [
+        {
+          categoria: "Surtidas",
+          items: [
+            { id: "surtida-chorizo", nombre: "Surtida de Chorizo", precio: 3500, descripcion: "Pollo frito, chorizo, carne desmechada" },
+            { id: "surtida-queso",   nombre: "Surtida de Queso",   precio: 4000, descripcion: "Pollo frito, chorizo, carne desmechada, queso" },
+            { id: "pollo-frito",     nombre: "Pollo Frito",        precio: 3000, descripcion: "Pollo frito, papa" }
+          ]
+        },
+        {
+          categoria: "Empanadas de Harina",
+          items: [
+            { id: "empanada-pollo",    nombre: "Empanada de Pollo",             precio: 2500 },
+            { id: "empanada-carne",    nombre: "Empanada de Carne Desmechada",  precio: 2500 },
+            { id: "empanada-hawaiana", nombre: "Empanada Hawaiana",             precio: 2500 }
+          ]
+        },
+        {
+          categoria: "Mixtas de Maíz",
+          items: [
+            { id: "mixta-chorizo",   nombre: "Mixta de Chorizo",   precio: 2500, descripcion: "Chorizo, carne molida, pollo" },
+            { id: "mixta-salchicha", nombre: "Mixta de Salchicha", precio: 2500, descripcion: "Salchicha, queso, pollo" },
+            { id: "mixta-huevo",     nombre: "Mixta de Huevo",     precio: 2500, descripcion: "Huevo duro, carne desmechada, queso" }
+          ]
+        },
+        {
+          categoria: "Papas",
+          items: [
+            { id: "papa-huevo-carne", nombre: "Papa de Huevo y Carne", precio: 2500 },
+            { id: "papa-chorizo",     nombre: "Papa de Chorizo",       precio: 2500 }
+          ]
+        },
+        {
+          categoria: "De Maíz",
+          items: [
+            { id: "arepa-huevo",         nombre: "Arepa con Huevo",                    precio: 3000 },
+            { id: "carimanola",          nombre: "Carimañola",                         precio: 2000 },
+            { id: "empanada-maiz-carne", nombre: "Empanada de Carne Desmechada (maíz)", precio: 2500 }
+          ]
+        },
+        {
+          categoria: "Otros",
+          items: [
+            { id: "bunuelo",        nombre: "Buñuelo de Harina",             precio: 2300 },
+            { id: "kibbe",          nombre: "Kibbe",                         precio: 2500 },
+            { id: "dedito-queso",   nombre: "Dedito de Queso",               precio: 2500 },
+            { id: "rollito",        nombre: "Rollito de Salchicha y Queso",  precio: 2500 },
+            { id: "huevo-duro",     nombre: "Huevo Duro",                    precio: 1000 },
+            { id: "revoltillo",     nombre: "Revoltillo",                    precio: 5500, descripcion: "Huevo revuelto, patacón o arepa asada o frita" },
+            { id: "arepa-frita",    nombre: "Arepa Frita",                   precio: 1500 },
+            { id: "arepa-asada",    nombre: "Arepa Asada",                   precio: 1500 }
+          ]
+        },
+        {
+          categoria: "Bebidas",
+          items: [
+            { id: "chicha",       nombre: "Chicha",          precio: 2000 },
+            { id: "jugo-natural", nombre: "Jugo Natural",    precio: 2500, descripcion: "Maracuyá, mora o zanahoria" },
+            { id: "jugo-naranja", nombre: "Jugo de Naranja", precio: 3000 }
+          ]
+        }
+      ]
+    };
+  </script>
+
+  <!-- ══════════════ ESTRUCTURA DE LA PÁGINA ══════════════ -->
+  <div class="estado" id="estado" role="alert"></div>
+
+  <header>
+    <h1 id="titulo-negocio"></h1>
+    <p id="lema-negocio"></p>
+  </header>
+
+  <main>
+    <!-- Datos del cliente -->
+    <section class="panel">
+      <label for="cliente">¿A nombre de quién es el pedido? *</label>
+      <input type="text" id="cliente" placeholder="Ej: Doña Marta" autocomplete="name">
+
+      <label for="fecha">Fecha del pedido</label>
+      <input type="date" id="fecha">
+
+      <label for="nota">Nota (opcional)</label>
+      <textarea id="nota" rows="2" placeholder="Ej: la arepa sin sal, entregar en la portería"></textarea>
+
+      <div class="check-row">
+        <input type="checkbox" id="enviar-whatsapp" checked>
+        <label for="enviar-whatsapp" style="margin:0; font-weight:500;">Enviar el pedido por WhatsApp al negocio</label>
+      </div>
+    </section>
+
+    <!-- El menú se genera aquí desde CONFIG.menu -->
+    <section id="menu"></section>
+  </main>
+
+  <!-- Barra fija con total y botón de envío -->
+  <div class="barra-carrito">
+    <div class="barra-inner">
+      <div class="barra-total">
+        <div class="etiqueta" id="resumen-items">0 productos</div>
+        <div class="valor" id="total">$ 0</div>
+      </div>
+      <button class="btn-enviar" id="btn-enviar" disabled>Hacer pedido</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       LÓGICA DE LA APLICACIÓN
+       No necesitas tocar nada de aquí hacia abajo para cambiar
+       la carta, el número o el negocio: todo sale de CONFIG.
+       ══════════════════════════════════════════════════════════════ -->
+  <script>
+    /* ---------- Estado de la aplicación ----------
+       "carrito" es un Map: id del producto -> cantidad elegida.
+       Map es como un objeto, pero pensado para pares clave-valor dinámicos. */
+    const carrito = new Map();
+
+    /* Índice para buscar un producto por su id en O(1),
+       construido una sola vez a partir de CONFIG.menu. */
+    const indiceProductos = new Map();
+    CONFIG.menu.forEach(cat =>
+      cat.items.forEach(item => indiceProductos.set(item.id, { ...item, categoria: cat.categoria }))
+    );
+
+    /* ---------- Utilidades ---------- */
+
+    // Formatea 3500 como "$ 3.500" según la región configurada.
+    const formatoMoneda = new Intl.NumberFormat(CONFIG.region, {
+      style: "currency",
+      currency: CONFIG.moneda,
+      maximumFractionDigits: 0
+    });
+    const precio = (valor) => formatoMoneda.format(valor);
+
+    // Genera un id de pedido legible: PED-20260713-483
+    function generarIdPedido() {
+      const ahora = new Date();
+      const fecha = ahora.toISOString().slice(0, 10).replaceAll("-", "");
+      const aleatorio = Math.floor(Math.random() * 900) + 100;
+      return `PED-${fecha}-${aleatorio}`;
+    }
+
+    // Muestra un aviso flotante de éxito o error durante unos segundos.
+    function mostrarEstado(mensaje, tipo) {
+      const el = document.getElementById("estado");
+      el.textContent = mensaje;
+      el.className = `estado ${tipo}`;
+      setTimeout(() => { el.className = "estado"; }, 6000);
+    }
+
+    /* ---------- Renderizado del menú ---------- */
+
+    function renderizarMenu() {
+      const contenedor = document.getElementById("menu");
+      // Recorremos las categorías y construimos el HTML de cada producto.
+      contenedor.innerHTML = CONFIG.menu.map(cat => `
+        <h2 class="categoria">${cat.categoria}</h2>
+        ${cat.items.map(item => `
+          <div class="producto">
+            <div class="info">
+              <div class="nombre">${item.nombre}</div>
+              ${item.descripcion ? `<div class="descripcion">${item.descripcion}</div>` : ""}
+              <div class="precio">${precio(item.precio)}</div>
+            </div>
+            <div class="cantidad">
+              <button aria-label="Quitar ${item.nombre}" onclick="cambiarCantidad('${item.id}', -1)">−</button>
+              <span class="num" id="cant-${item.id}">0</span>
+              <button class="mas" aria-label="Agregar ${item.nombre}" onclick="cambiarCantidad('${item.id}', 1)">+</button>
+            </div>
+          </div>
+        `).join("")}
+      `).join("");
+    }
+
+    /* ---------- Lógica del carrito ---------- */
+
+    function cambiarCantidad(id, delta) {
+      const actual = carrito.get(id) || 0;
+      const nueva = Math.max(0, actual + delta); // nunca menor que 0
+      if (nueva === 0) carrito.delete(id);
+      else carrito.set(id, nueva);
+
+      document.getElementById(`cant-${id}`).textContent = nueva;
+      actualizarBarra();
+    }
+
+    function calcularTotal() {
+      let total = 0;
+      for (const [id, cantidad] of carrito) {
+        total += indiceProductos.get(id).precio * cantidad;
+      }
+      return total;
+    }
+
+    function actualizarBarra() {
+      const numItems = [...carrito.values()].reduce((suma, c) => suma + c, 0);
+      document.getElementById("resumen-items").textContent =
+        numItems === 1 ? "1 producto" : `${numItems} productos`;
+      document.getElementById("total").textContent = precio(calcularTotal());
+      document.getElementById("btn-enviar").disabled = numItems === 0;
+    }
+
+    /* ---------- Construcción del pedido ---------- */
+
+    // Convierte el carrito en la estructura que espera el backend.
+    function construirPedido() {
+      const items = [...carrito.entries()].map(([id, cantidad]) => {
+        const p = indiceProductos.get(id);
+        return {
+          nombre: p.nombre,
+          categoria: p.categoria,
+          precio: p.precio,
+          cantidad: cantidad,
+          subtotal: p.precio * cantidad
+        };
+      });
+
+      return {
+        pedidoId: generarIdPedido(),
+        fecha: document.getElementById("fecha").value,      // "2026-07-13"
+        cliente: document.getElementById("cliente").value.trim(),
+        nota: document.getElementById("nota").value.trim(),
+        items: items,
+        total: calcularTotal()
+      };
+    }
+
+    // Arma el texto del mensaje de WhatsApp con el detalle del pedido.
+    function construirMensajeWhatsApp(pedido) {
+      const lineas = pedido.items.map(i => `• ${i.cantidad} x ${i.nombre} — ${precio(i.subtotal)}`);
+      const partes = [
+        `🍳 *Nuevo pedido — ${CONFIG.nombreNegocio}*`,
+        `👤 Cliente: ${pedido.cliente}`,
+        `📅 Fecha: ${pedido.fecha}`,
+        ``,
+        ...lineas,
+        ``,
+        `💰 *Total: ${precio(pedido.total)}*`
+      ];
+      if (pedido.nota) partes.push(`📝 Nota: ${pedido.nota}`);
+      partes.push(`\n(${pedido.pedidoId})`);
+      return partes.join("\n");
+    }
+
+    /* ---------- Envío ---------- */
+
+    // Guarda el pedido en Google Sheets llamando al Apps Script.
+    // Usamos Content-Type "text/plain" a propósito: así el navegador hace
+    // una "solicitud simple" y evita el preflight de CORS que Apps Script
+    // no sabe responder. El detalle está explicado en la documentación.
+    async function guardarEnSheets(pedido) {
+      const respuesta = await fetch(CONFIG.urlBackend, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(pedido)
+      });
+      if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+      const datos = await respuesta.json();
+      if (!datos.ok) throw new Error(datos.error || "Error desconocido del backend");
+      return datos;
+    }
+
+    async function enviarPedido() {
+      const boton = document.getElementById("btn-enviar");
+
+      // Validaciones mínimas antes de enviar
+      const cliente = document.getElementById("cliente").value.trim();
+      if (!cliente) {
+        mostrarEstado("Escribe el nombre de quien hace el pedido 🙂", "error");
+        document.getElementById("cliente").focus();
+        return;
+      }
+      if (carrito.size === 0) return;
+
+      const pedido = construirPedido();
+      boton.disabled = true;
+      boton.textContent = "Enviando…";
+
+      // 1) Guardar en Google Sheets (si el backend está configurado)
+      let guardado = false;
+      if (CONFIG.urlBackend.startsWith("https://")) {
+        try {
+          await guardarEnSheets(pedido);
+          guardado = true;
+        } catch (err) {
+          console.error("No se pudo guardar en Sheets:", err);
+        }
+      }
+
+      // 2) Abrir WhatsApp con el mensaje listo (si el usuario lo dejó marcado)
+      if (document.getElementById("enviar-whatsapp").checked) {
+        const url = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(construirMensajeWhatsApp(pedido))}`;
+        window.open(url, "_blank");
+      }
+
+      // 3) Informar el resultado y limpiar el carrito si todo salió bien
+      if (guardado) {
+        mostrarEstado(`✅ Pedido ${pedido.pedidoId} registrado. ¡Gracias, ${cliente}!`, "exito");
+        limpiarCarrito();
+      } else if (CONFIG.urlBackend.startsWith("https://")) {
+        mostrarEstado("⚠️ El pedido se envió por WhatsApp pero no se pudo guardar en el historial. Intenta de nuevo o avisa al administrador.", "error");
+      } else {
+        mostrarEstado("Pedido enviado por WhatsApp. (El historial aún no está conectado: falta la URL del backend en CONFIG).", "exito");
+        limpiarCarrito();
+      }
+
+      boton.textContent = "Hacer pedido";
+      boton.disabled = carrito.size === 0;
+    }
+
+    function limpiarCarrito() {
+      for (const id of [...carrito.keys()]) {
+        carrito.delete(id);
+        document.getElementById(`cant-${id}`).textContent = 0;
+      }
+      document.getElementById("nota").value = "";
+      actualizarBarra();
+    }
+
+    /* ---------- Arranque ---------- */
+
+    function iniciar() {
+      // Textos del encabezado desde la configuración
+      document.title = `${CONFIG.nombreNegocio} · Haz tu pedido`;
+      document.getElementById("titulo-negocio").textContent = CONFIG.nombreNegocio;
+      document.getElementById("lema-negocio").textContent = CONFIG.lema;
+
+      // La fecha del pedido arranca en "hoy" (hora local del dispositivo)
+      const hoy = new Date();
+      hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset()); // corrige a hora local
+      document.getElementById("fecha").value = hoy.toISOString().slice(0, 10);
+
+      renderizarMenu();
+      actualizarBarra();
+      document.getElementById("btn-enviar").addEventListener("click", enviarPedido);
+    }
+
+    iniciar();
+  </script>
+</body>
+</html>
