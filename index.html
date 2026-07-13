@@ -386,19 +386,22 @@
     }
 
     // Arma el texto del mensaje de WhatsApp con el detalle del pedido.
+    // Nota: a propósito NO usa emojis. Los emojis viajan mal por el
+    // parámetro ?text= en algunos WhatsApp de escritorio (llegan como �),
+    // y no controlamos qué cliente de WhatsApp usa cada persona.
     function construirMensajeWhatsApp(pedido) {
       const lineas = pedido.items.map(i => `• ${i.cantidad} x ${i.nombre} — ${precio(i.subtotal)}`);
       const partes = [
-        `🍳 *Nuevo pedido — ${CONFIG.nombreNegocio}*`,
-        `👤 Cliente: ${pedido.cliente}`,
-        `📅 Fecha: ${pedido.fecha}`,
+        `*Nuevo pedido — ${CONFIG.nombreNegocio}*`,
+        `Cliente: ${pedido.cliente}`,
+        `Fecha: ${pedido.fecha}`,
         ``,
         ...lineas,
         ``,
-        `💰 *Total: ${precio(pedido.total)}*`
+        `*Total: ${precio(pedido.total)}*`
       ];
-      if (pedido.nota) partes.push(`📝 Nota: ${pedido.nota}`);
-      partes.push(`\n(${pedido.pedidoId})`);
+      if (pedido.nota) partes.push(`Nota: ${pedido.nota}`);
+      partes.push(`\nPedido: ${pedido.pedidoId}`);
       return partes.join("\n");
     }
 
