@@ -59,6 +59,36 @@
     .check-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: .95rem; }
     .check-row input { width: 20px; height: 20px; accent-color: var(--color-primario); }
 
+    /* Chips de personas (pedidos grupales) */
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip {
+      padding: 9px 14px;
+      border: none; border-radius: 20px;
+      background: #f6e8d8; color: var(--color-primario-osc);
+      font-weight: 600; font-size: .9rem;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .chip.activa { background: var(--color-primario); color: #fff; }
+    .chip .contador {
+      background: rgba(0,0,0,.12); border-radius: 10px;
+      padding: 1px 8px; font-size: .78rem;
+    }
+    .chip .quitar { font-weight: 800; opacity: .7; padding: 0 2px; }
+    .chip-agregar {
+      background: #fff;
+      border: 1.5px dashed var(--color-primario);
+      color: var(--color-primario-osc);
+    }
+    .form-persona { display: flex; gap: 8px; margin-top: 10px; }
+    .form-persona input { flex: 1; }
+    .form-persona button {
+      background: var(--color-primario); color: #fff;
+      border: none; border-radius: 10px; padding: 0 18px;
+      font-weight: 700; cursor: pointer;
+    }
+    .aviso-persona { font-size: .8rem; color: var(--color-texto-suave); margin-top: 8px; }
+
     /* Menú */
     h2.categoria {
       margin: 26px 4px 10px;
@@ -150,7 +180,7 @@
 
       // URL del Web App de Google Apps Script (backend que guarda en Sheets).
       // La obtienes al desplegar el script — ver GUIA_DE_DESPLIEGUE.md, paso 3.
-      urlBackend: "https://script.google.com/macros/s/AKfycby2aNEcgz3r5yt0EYeS1XqtvQpt3dhAXFJucsrAcDPhNMiO1YqmImVI9Y4CpFMvBdaY/exec",
+      urlBackend: "PEGA_AQUI_LA_URL_DE_TU_APPS_SCRIPT",
 
       // Configuración regional para mostrar precios ($ 3.500)
       region: "es-CO",
@@ -264,6 +294,19 @@
       </div>
     </section>
 
+    <!-- Pedido grupal: una persona puede pedir para varias. Cada "chip"
+         es una persona con su propio carrito (sub-pedido); los productos
+         que marques en el menú se agregan a la persona seleccionada. -->
+    <section class="panel">
+      <label style="margin-top:0;">¿Para quiénes es el pedido?</label>
+      <div class="chips" id="chips-personas"></div>
+      <div class="form-persona" id="form-persona" style="display:none;">
+        <input type="text" id="nueva-persona" placeholder="Nombre, ej: Kevin" maxlength="40">
+        <button id="btn-confirmar-persona">Listo</button>
+      </div>
+      <div class="aviso-persona">Toca una persona para armar su parte del pedido. Los productos del menú se agregan a quien esté seleccionado.</div>
+    </section>
+
     <!-- El menú se genera aquí desde CONFIG.menu -->
     <section id="menu"></section>
   </main>
@@ -286,9 +329,23 @@
        ══════════════════════════════════════════════════════════════ -->
   <script>
     /* ---------- Estado de la aplicación ----------
-       "carrito" es un Map: id del producto -> cantidad elegida.
-       Map es como un objeto, pero pensado para pares clave-valor dinámicos. */
-    const carrito = new Map();
+       Un pedido puede ser para VARIAS personas (pedido grupal).
+       Cada persona tiene su propio carrito (un Map: id producto -> cantidad).
+       La primera persona es siempre el responsable del pedido: su nombre
+       no se guarda aquí (nombre: null) sino que se lee del campo #cliente,
+       así se actualiza solo mientras escribe. */
+    function crearPersona(nombre) {
+      return { nombre: nombre, carrito: new Map() };
+    }
+    let personas = [crearPersona(null)];
+    let personaActiva = 0; // índice de la persona seleccionada
+
+    function carritoActivo() { return personas[personaActiva].carrito; }
+
+    function nombrePersona(p) {
+      if (p.nombre !== null) return p.nombre;
+      return document.getElementById("cliente").value.trim() || "Responsable";
+    }
 
     /* Índice para buscar un producto por su id en O(1),
        construido una sola vez a partir de CONFIG.menu. */
@@ -349,7 +406,9 @@
 
     /* ---------- Lógica del carrito ---------- */
 
+    // Los cambios de cantidad siempre aplican al carrito de la persona activa.
     function cambiarCantidad(id, delta) {
+      const carrito = carritoActivo();
       const actual = carrito.get(id) || 0;
       const nueva = Math.max(0, actual + delta); // nunca menor que 0
       if (nueva === 0) carrito.delete(id);
@@ -357,37 +416,111 @@
 
       document.getElementById(`cant-${id}`).textContent = nueva;
       actualizarBarra();
+      renderizarPersonas(); // refresca el contador del chip
     }
 
-    function calcularTotal() {
+    function subtotalPersona(p) {
       let total = 0;
-      for (const [id, cantidad] of carrito) {
+      for (const [id, cantidad] of p.carrito) {
         total += indiceProductos.get(id).precio * cantidad;
       }
       return total;
     }
 
+    function contarItems(p) {
+      return [...p.carrito.values()].reduce((suma, c) => suma + c, 0);
+    }
+
+    // El total del pedido es la suma de los sub-pedidos de todas las personas.
+    function calcularTotal() {
+      return personas.reduce((suma, p) => suma + subtotalPersona(p), 0);
+    }
+
     function actualizarBarra() {
-      const numItems = [...carrito.values()].reduce((suma, c) => suma + c, 0);
+      const numItems = personas.reduce((suma, p) => suma + contarItems(p), 0);
       document.getElementById("resumen-items").textContent =
         numItems === 1 ? "1 producto" : `${numItems} productos`;
       document.getElementById("total").textContent = precio(calcularTotal());
       document.getElementById("btn-enviar").disabled = numItems === 0;
     }
 
+    /* ---------- Personas (pedido grupal) ---------- */
+
+    function renderizarPersonas() {
+      const contenedor = document.getElementById("chips-personas");
+      const chips = personas.map((p, i) => {
+        const items = contarItems(p);
+        return `
+          <button class="chip ${i === personaActiva ? "activa" : ""}" onclick="seleccionarPersona(${i})">
+            ${nombrePersona(p)}
+            ${items > 0 ? `<span class="contador">${items}</span>` : ""}
+            ${i > 0 ? `<span class="quitar" onclick="event.stopPropagation(); quitarPersona(${i})" title="Quitar persona">×</span>` : ""}
+          </button>`;
+      });
+      chips.push(`<button class="chip chip-agregar" onclick="mostrarFormPersona()">+ Otra persona</button>`);
+      contenedor.innerHTML = chips.join("");
+    }
+
+    function seleccionarPersona(i) {
+      personaActiva = i;
+      renderizarPersonas();
+      refrescarCantidades(); // el menú pasa a mostrar el carrito de esta persona
+    }
+
+    // Pone en el menú las cantidades del carrito de la persona activa.
+    function refrescarCantidades() {
+      const carrito = carritoActivo();
+      for (const id of indiceProductos.keys()) {
+        document.getElementById(`cant-${id}`).textContent = carrito.get(id) || 0;
+      }
+    }
+
+    function mostrarFormPersona() {
+      document.getElementById("form-persona").style.display = "flex";
+      document.getElementById("nueva-persona").focus();
+    }
+
+    function agregarPersona() {
+      const input = document.getElementById("nueva-persona");
+      const nombre = input.value.trim();
+      if (!nombre) { input.focus(); return; }
+      personas.push(crearPersona(nombre));
+      personaActiva = personas.length - 1; // queda seleccionada la nueva
+      input.value = "";
+      document.getElementById("form-persona").style.display = "none";
+      renderizarPersonas();
+      refrescarCantidades();
+    }
+
+    function quitarPersona(i) {
+      personas.splice(i, 1); // elimina a la persona y su carrito
+      if (personaActiva >= personas.length) personaActiva = personas.length - 1;
+      renderizarPersonas();
+      refrescarCantidades();
+      actualizarBarra();
+    }
+
     /* ---------- Construcción del pedido ---------- */
 
-    // Convierte el carrito en la estructura que espera el backend.
+    // Convierte los carritos de todas las personas en la estructura que
+    // espera el backend: una lista PLANA de productos donde cada uno lleva
+    // la persona a la que pertenece. La hoja de cálculo es plana (filas),
+    // así que "aplanamos" el pedido grupal etiquetando cada fila.
     function construirPedido() {
-      const items = [...carrito.entries()].map(([id, cantidad]) => {
-        const p = indiceProductos.get(id);
-        return {
-          nombre: p.nombre,
-          categoria: p.categoria,
-          precio: p.precio,
-          cantidad: cantidad,
-          subtotal: p.precio * cantidad
-        };
+      const items = [];
+      personas.forEach(p => {
+        const persona = nombrePersona(p);
+        for (const [id, cantidad] of p.carrito) {
+          const prod = indiceProductos.get(id);
+          items.push({
+            nombre: prod.nombre,
+            categoria: prod.categoria,
+            precio: prod.precio,
+            cantidad: cantidad,
+            subtotal: prod.precio * cantidad,
+            persona: persona
+          });
+        }
       });
 
       // Si es domicilio (WhatsApp marcado) la dirección viene del campo;
@@ -413,17 +546,33 @@
     // parámetro ?text= en algunos WhatsApp de escritorio (llegan como �),
     // y no controlamos qué cliente de WhatsApp usa cada persona.
     function construirMensajeWhatsApp(pedido) {
-      const lineas = pedido.items.map(i => `• ${i.cantidad} x ${i.nombre} — ${precio(i.subtotal)}`);
       const partes = [
         `*Nuevo pedido — ${CONFIG.nombreNegocio}*`,
         `Cliente: ${pedido.cliente}`,
         `Dirección: ${pedido.direccion}`,
         `Fecha: ${pedido.fecha}`,
-        ``,
-        ...lineas,
-        ``,
-        `*Total: ${precio(pedido.total)}*`
+        ``
       ];
+
+      // Personas distintas que aparecen en los items, en orden.
+      const nombres = [...new Set(pedido.items.map(i => i.persona))];
+
+      if (nombres.length === 1) {
+        // Pedido individual: lista simple, sin repetir el nombre.
+        pedido.items.forEach(i => partes.push(`• ${i.cantidad} x ${i.nombre} — ${precio(i.subtotal)}`));
+      } else {
+        // Pedido grupal: los productos agrupados por persona, con su subtotal.
+        nombres.forEach(nombre => {
+          const suyos = pedido.items.filter(i => i.persona === nombre);
+          const subtotal = suyos.reduce((s, i) => s + i.subtotal, 0);
+          partes.push(`*${nombre}* (${precio(subtotal)}):`);
+          suyos.forEach(i => partes.push(`• ${i.cantidad} x ${i.nombre} — ${precio(i.subtotal)}`));
+          partes.push(``);
+        });
+        partes.pop(); // quita la línea en blanco final del bucle
+      }
+
+      partes.push(``, `*Total: ${precio(pedido.total)}*`);
       if (pedido.nota) partes.push(`Nota: ${pedido.nota}`);
       partes.push(`\nPedido: ${pedido.pedidoId}`);
       return partes.join("\n");
@@ -465,7 +614,7 @@
         document.getElementById("direccion").focus();
         return;
       }
-      if (carrito.size === 0) return;
+      if (calcularTotal() === 0) return;
 
       const pedido = construirPedido();
       boton.disabled = true;
@@ -500,16 +649,16 @@
       }
 
       boton.textContent = "Hacer pedido";
-      boton.disabled = carrito.size === 0;
+      boton.disabled = calcularTotal() === 0;
     }
 
     function limpiarCarrito() {
-      for (const id of [...carrito.keys()]) {
-        carrito.delete(id);
-        document.getElementById(`cant-${id}`).textContent = 0;
-      }
+      personas = [crearPersona(null)]; // vuelve a quedar solo el responsable
+      personaActiva = 0;
       document.getElementById("nota").value = "";
       document.getElementById("direccion").value = "";
+      renderizarPersonas();
+      refrescarCantidades();
       actualizarBarra();
     }
 
@@ -535,10 +684,19 @@
       document.getElementById("fecha").value = hoy.toISOString().slice(0, 10);
 
       renderizarMenu();
+      renderizarPersonas();
       actualizarBarra();
       document.getElementById("btn-enviar").addEventListener("click", enviarPedido);
       document.getElementById("enviar-whatsapp").addEventListener("change", alternarCampoDireccion);
       alternarCampoDireccion();
+
+      // Pedido grupal: agregar persona con el botón o con la tecla Enter,
+      // y refrescar el nombre del primer chip mientras se escribe el cliente.
+      document.getElementById("btn-confirmar-persona").addEventListener("click", agregarPersona);
+      document.getElementById("nueva-persona").addEventListener("keydown", e => {
+        if (e.key === "Enter") agregarPersona();
+      });
+      document.getElementById("cliente").addEventListener("input", renderizarPersonas);
     }
 
     iniciar();
