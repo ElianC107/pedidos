@@ -141,8 +141,8 @@
   <script>
     const CONFIG = {
       // Nombre que aparece en el encabezado y en el mensaje de WhatsApp
-      nombreNegocio: "Desayunos",
-      lema: "Pide tu desayuno y te lo llevamos 🛵",
+      nombreNegocio: "La Terraza",
+      lema: "Pide tu desayuno y te lo llevamos🛵",
 
       // Número de WhatsApp que RECIBE los pedidos.
       // Formato internacional SIN el signo +. Colombia = 57 + celular.
@@ -171,7 +171,8 @@
           categoria: "Empanadas de Harina",
           items: [
             { id: "empanada-pollo",    nombre: "Empanada de Pollo",             precio: 2500 },
-            { id: "empanada-carne",    nombre: "Empanada de Carne Desmechada",  precio: 2500 },
+            { id: "empanada-carne-desmechada",    nombre: "Empanada de Carne Desmechada",  precio: 2500 },
+			{ id: "empanada-carne-molida",    nombre: "Empanada de Carne Molida",  precio: 2500 },
             { id: "empanada-hawaiana", nombre: "Empanada Hawaiana",             precio: 2500 }
           ]
         },
@@ -193,30 +194,36 @@
         {
           categoria: "De Maíz",
           items: [
-            { id: "arepa-huevo",         nombre: "Arepa con Huevo",                    precio: 3000 },
-            { id: "carimanola",          nombre: "Carimañola",                         precio: 2000 },
-            { id: "empanada-maiz-carne", nombre: "Empanada de Carne Desmechada (maíz)", precio: 2500 }
+            { id: "arepa-huevo",         nombre: "Arepa de Huevo",                    precio: 3500 },
+            { id: "carimanola",          nombre: "Carimañola",                         precio: 2500 },
+            { id: "empanada-maiz-carne", nombre: "Empanada de Carne Desmechada (maíz)", precio: 2500 },
+			{ id: "arepa-boca-sucia", 	 nombre: "Boca Sucia", precio: 1500 }
           ]
         },
         {
           categoria: "Otros",
           items: [
             { id: "bunuelo",        nombre: "Buñuelo de Harina",             precio: 2300 },
+			{ id: "chorizo",        nombre: "chorizo",             			 precio: 3500 },
+			{ id: "salchichon",     nombre: "Salchichon",             		 precio: 2000 },
             { id: "kibbe",          nombre: "Kibbe",                         precio: 2500 },
             { id: "dedito-queso",   nombre: "Dedito de Queso",               precio: 2500 },
             { id: "rollito",        nombre: "Rollito de Salchicha y Queso",  precio: 2500 },
             { id: "huevo-duro",     nombre: "Huevo Duro",                    precio: 1000 },
             { id: "revoltillo",     nombre: "Revoltillo",                    precio: 5500, descripcion: "Huevo revuelto, patacón o arepa asada o frita" },
             { id: "arepa-frita",    nombre: "Arepa Frita",                   precio: 1500 },
-            { id: "arepa-asada",    nombre: "Arepa Asada",                   precio: 1500 }
+            { id: "arepa-asada",    nombre: "Arepa Asada",                   precio: 1500 },
+			{ id: "arepa-dulce",    nombre: "Arepa Dulce",                   precio: 1500 }
           ]
         },
         {
           categoria: "Bebidas",
           items: [
             { id: "chicha",       nombre: "Chicha",          precio: 2000 },
-            { id: "jugo-natural", nombre: "Jugo Natural",    precio: 2500, descripcion: "Maracuyá, mora o zanahoria" },
-            { id: "jugo-naranja", nombre: "Jugo de Naranja", precio: 3000 }
+            { id: "jugo-zanahoria", nombre: "Jugo Zanahora",    precio: 3000,},
+			{id: "jugo-mora", nombre: "Jugo Mora",    precio: 3000,},
+			{id: "jugo-maracuya", nombre: "Jugo Maracuya",    precio: 3000,},
+            { id: "jugo-naranja", nombre: "Jugo de Naranja", precio: 3500 }
           ]
         }
       ]
@@ -237,6 +244,14 @@
       <label for="cliente">¿A nombre de quién es el pedido? *</label>
       <input type="text" id="cliente" placeholder="Ej: Doña Marta" autocomplete="name">
 
+      <!-- La dirección solo es obligatoria para domicilios (casilla de
+           WhatsApp marcada). Si se desmarca (venta en el local), este
+           campo se oculta y se registra "En el local". -->
+      <div id="campo-direccion">
+        <label for="direccion">Dirección de entrega *</label>
+        <input type="text" id="direccion" placeholder="Ej: Calle 12 #34-56, casa verde" autocomplete="street-address">
+      </div>
+
       <label for="fecha">Fecha del pedido</label>
       <input type="date" id="fecha">
 
@@ -245,7 +260,7 @@
 
       <div class="check-row">
         <input type="checkbox" id="enviar-whatsapp" checked>
-        <label for="enviar-whatsapp" style="margin:0; font-weight:500;">Enviar el pedido por WhatsApp al negocio</label>
+        <label for="enviar-whatsapp" style="margin:0; font-weight:500;">Pedido a domicilio (se envía por WhatsApp al negocio)</label>
       </div>
     </section>
 
@@ -375,10 +390,18 @@
         };
       });
 
+      // Si es domicilio (WhatsApp marcado) la dirección viene del campo;
+      // si es venta en el local, se registra como "En el local".
+      const esDomicilio = document.getElementById("enviar-whatsapp").checked;
+      const direccion = esDomicilio
+        ? document.getElementById("direccion").value.trim()
+        : "En el local";
+
       return {
         pedidoId: generarIdPedido(),
         fecha: document.getElementById("fecha").value,      // "2026-07-13"
         cliente: document.getElementById("cliente").value.trim(),
+        direccion: direccion,
         nota: document.getElementById("nota").value.trim(),
         items: items,
         total: calcularTotal()
@@ -394,6 +417,7 @@
       const partes = [
         `*Nuevo pedido — ${CONFIG.nombreNegocio}*`,
         `Cliente: ${pedido.cliente}`,
+        `Dirección: ${pedido.direccion}`,
         `Fecha: ${pedido.fecha}`,
         ``,
         ...lineas,
@@ -431,6 +455,14 @@
       if (!cliente) {
         mostrarEstado("Escribe el nombre de quien hace el pedido 🙂", "error");
         document.getElementById("cliente").focus();
+        return;
+      }
+      // La dirección es obligatoria solo para domicilios (WhatsApp marcado):
+      // quien pide desde la app no está en el negocio.
+      const esDomicilio = document.getElementById("enviar-whatsapp").checked;
+      if (esDomicilio && !document.getElementById("direccion").value.trim()) {
+        mostrarEstado("Escribe la dirección de entrega para el domicilio 🙂", "error");
+        document.getElementById("direccion").focus();
         return;
       }
       if (carrito.size === 0) return;
@@ -477,7 +509,16 @@
         document.getElementById(`cant-${id}`).textContent = 0;
       }
       document.getElementById("nota").value = "";
+      document.getElementById("direccion").value = "";
       actualizarBarra();
+    }
+
+    /* Muestra u oculta el campo de dirección según el tipo de venta:
+       casilla marcada = domicilio (dirección obligatoria),
+       desmarcada = venta en el local (no aplica dirección). */
+    function alternarCampoDireccion() {
+      const esDomicilio = document.getElementById("enviar-whatsapp").checked;
+      document.getElementById("campo-direccion").style.display = esDomicilio ? "" : "none";
     }
 
     /* ---------- Arranque ---------- */
@@ -496,6 +537,8 @@
       renderizarMenu();
       actualizarBarra();
       document.getElementById("btn-enviar").addEventListener("click", enviarPedido);
+      document.getElementById("enviar-whatsapp").addEventListener("change", alternarCampoDireccion);
+      alternarCampoDireccion();
     }
 
     iniciar();
