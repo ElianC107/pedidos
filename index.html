@@ -163,31 +163,18 @@
 </head>
 <body>
 
-  <!-- ══════════════════════════════════════════════════════════════
-       ⚙️ CONFIGURACIÓN DEL NEGOCIO — ÚNICO BLOQUE QUE DEBES EDITAR
-       Para reutilizar esta app en otro negocio, cambia solo este objeto:
-       nombre, WhatsApp, URL del backend y el menú con sus precios.
-       ══════════════════════════════════════════════════════════════ -->
   <script>
     const CONFIG = {
-      // Nombre que aparece en el encabezado y en el mensaje de WhatsApp
       nombreNegocio: "La Terraza",
-      lema: "Pide tu desayuno y te lo llevamos🛵",
+      lema: "Pide tu desayuno y te lo llevamos 🛵",
 
-      // Número de WhatsApp que RECIBE los pedidos.
-      // Formato internacional SIN el signo +. Colombia = 57 + celular.
       whatsapp: "573104001027",
 
-      // URL del Web App de Google Apps Script (backend que guarda en Sheets).
-      // La obtienes al desplegar el script — ver GUIA_DE_DESPLIEGUE.md, paso 3.
       urlBackend: "https://script.google.com/macros/s/AKfycby2aNEcgz3r5yt0EYeS1XqtvQpt3dhAXFJucsrAcDPhNMiO1YqmImVI9Y4CpFMvBdaY/exec",
 
-      // Configuración regional para mostrar precios ($ 3.500)
       region: "es-CO",
       moneda: "COP",
 
-      // 🍳 LA CARTA. Cada producto necesita: id único, nombre y precio.
-      // "descripcion" es opcional. Para cambiar la carta, edita solo esto.
       menu: [
         {
           categoria: "Surtidas",
@@ -260,7 +247,6 @@
     };
   </script>
 
-  <!-- ══════════════ ESTRUCTURA DE LA PÁGINA ══════════════ -->
   <div class="estado" id="estado" role="alert"></div>
 
   <header>
@@ -269,14 +255,10 @@
   </header>
 
   <main>
-    <!-- Datos del cliente -->
     <section class="panel">
       <label for="cliente">¿A nombre de quién es el pedido? *</label>
       <input type="text" id="cliente" placeholder="Ej: Doña Marta" autocomplete="name">
 
-      <!-- La dirección solo es obligatoria para domicilios (casilla de
-           WhatsApp marcada). Si se desmarca (venta en el local), este
-           campo se oculta y se registra "En el local". -->
       <div id="campo-direccion">
         <label for="direccion">Dirección de entrega *</label>
         <input type="text" id="direccion" placeholder="Ej: Calle 12 #34-56, casa verde" autocomplete="street-address">
@@ -294,9 +276,6 @@
       </div>
     </section>
 
-    <!-- Pedido grupal: una persona puede pedir para varias. Cada "chip"
-         es una persona con su propio carrito (sub-pedido); los productos
-         que marques en el menú se agregan a la persona seleccionada. -->
     <section class="panel">
       <label style="margin-top:0;">¿Para quiénes es el pedido?</label>
       <div class="chips" id="chips-personas"></div>
@@ -307,11 +286,9 @@
       <div class="aviso-persona">Toca una persona para armar su parte del pedido. Los productos del menú se agregan a quien esté seleccionado.</div>
     </section>
 
-    <!-- El menú se genera aquí desde CONFIG.menu -->
     <section id="menu"></section>
   </main>
 
-  <!-- Barra fija con total y botón de envío -->
   <div class="barra-carrito">
     <div class="barra-inner">
       <div class="barra-total">
@@ -322,18 +299,7 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════════════
-       LÓGICA DE LA APLICACIÓN
-       No necesitas tocar nada de aquí hacia abajo para cambiar
-       la carta, el número o el negocio: todo sale de CONFIG.
-       ══════════════════════════════════════════════════════════════ -->
   <script>
-    /* ---------- Estado de la aplicación ----------
-       Un pedido puede ser para VARIAS personas (pedido grupal).
-       Cada persona tiene su propio carrito (un Map: id producto -> cantidad).
-       La primera persona es siempre el responsable del pedido: su nombre
-       no se guarda aquí (nombre: null) sino que se lee del campo #cliente,
-       así se actualiza solo mientras escribe. */
     function crearPersona(nombre) {
       return { nombre: nombre, carrito: new Map() };
     }
@@ -347,16 +313,11 @@
       return document.getElementById("cliente").value.trim() || "Responsable";
     }
 
-    /* Índice para buscar un producto por su id en O(1),
-       construido una sola vez a partir de CONFIG.menu. */
     const indiceProductos = new Map();
     CONFIG.menu.forEach(cat =>
       cat.items.forEach(item => indiceProductos.set(item.id, { ...item, categoria: cat.categoria }))
     );
 
-    /* ---------- Utilidades ---------- */
-
-    // Formatea 3500 como "$ 3.500" según la región configurada.
     const formatoMoneda = new Intl.NumberFormat(CONFIG.region, {
       style: "currency",
       currency: CONFIG.moneda,
@@ -364,7 +325,6 @@
     });
     const precio = (valor) => formatoMoneda.format(valor);
 
-    // Genera un id de pedido legible: PED-20260713-483
     function generarIdPedido() {
       const ahora = new Date();
       const fecha = ahora.toISOString().slice(0, 10).replaceAll("-", "");
@@ -372,7 +332,6 @@
       return `PED-${fecha}-${aleatorio}`;
     }
 
-    // Muestra un aviso flotante de éxito o error durante unos segundos.
     function mostrarEstado(mensaje, tipo) {
       const el = document.getElementById("estado");
       el.textContent = mensaje;
@@ -380,11 +339,9 @@
       setTimeout(() => { el.className = "estado"; }, 6000);
     }
 
-    /* ---------- Renderizado del menú ---------- */
 
     function renderizarMenu() {
       const contenedor = document.getElementById("menu");
-      // Recorremos las categorías y construimos el HTML de cada producto.
       contenedor.innerHTML = CONFIG.menu.map(cat => `
         <h2 class="categoria">${cat.categoria}</h2>
         ${cat.items.map(item => `
@@ -406,17 +363,16 @@
 
     /* ---------- Lógica del carrito ---------- */
 
-    // Los cambios de cantidad siempre aplican al carrito de la persona activa.
     function cambiarCantidad(id, delta) {
       const carrito = carritoActivo();
       const actual = carrito.get(id) || 0;
-      const nueva = Math.max(0, actual + delta); // nunca menor que 0
+      const nueva = Math.max(0, actual + delta);
       if (nueva === 0) carrito.delete(id);
       else carrito.set(id, nueva);
 
       document.getElementById(`cant-${id}`).textContent = nueva;
       actualizarBarra();
-      renderizarPersonas(); // refresca el contador del chip
+      renderizarPersonas();
     }
 
     function subtotalPersona(p) {
@@ -431,7 +387,6 @@
       return [...p.carrito.values()].reduce((suma, c) => suma + c, 0);
     }
 
-    // El total del pedido es la suma de los sub-pedidos de todas las personas.
     function calcularTotal() {
       return personas.reduce((suma, p) => suma + subtotalPersona(p), 0);
     }
@@ -444,7 +399,6 @@
       document.getElementById("btn-enviar").disabled = numItems === 0;
     }
 
-    /* ---------- Personas (pedido grupal) ---------- */
 
     function renderizarPersonas() {
       const contenedor = document.getElementById("chips-personas");
@@ -464,10 +418,9 @@
     function seleccionarPersona(i) {
       personaActiva = i;
       renderizarPersonas();
-      refrescarCantidades(); // el menú pasa a mostrar el carrito de esta persona
+      refrescarCantidades(); 
     }
 
-    // Pone en el menú las cantidades del carrito de la persona activa.
     function refrescarCantidades() {
       const carrito = carritoActivo();
       for (const id of indiceProductos.keys()) {
@@ -485,7 +438,7 @@
       const nombre = input.value.trim();
       if (!nombre) { input.focus(); return; }
       personas.push(crearPersona(nombre));
-      personaActiva = personas.length - 1; // queda seleccionada la nueva
+      personaActiva = personas.length - 1;
       input.value = "";
       document.getElementById("form-persona").style.display = "none";
       renderizarPersonas();
@@ -493,19 +446,14 @@
     }
 
     function quitarPersona(i) {
-      personas.splice(i, 1); // elimina a la persona y su carrito
+      personas.splice(i, 1);
       if (personaActiva >= personas.length) personaActiva = personas.length - 1;
       renderizarPersonas();
       refrescarCantidades();
       actualizarBarra();
     }
 
-    /* ---------- Construcción del pedido ---------- */
 
-    // Convierte los carritos de todas las personas en la estructura que
-    // espera el backend: una lista PLANA de productos donde cada uno lleva
-    // la persona a la que pertenece. La hoja de cálculo es plana (filas),
-    // así que "aplanamos" el pedido grupal etiquetando cada fila.
     function construirPedido() {
       const items = [];
       personas.forEach(p => {
@@ -523,8 +471,6 @@
         }
       });
 
-      // Si es domicilio (WhatsApp marcado) la dirección viene del campo;
-      // si es venta en el local, se registra como "En el local".
       const esDomicilio = document.getElementById("enviar-whatsapp").checked;
       const direccion = esDomicilio
         ? document.getElementById("direccion").value.trim()
@@ -532,7 +478,7 @@
 
       return {
         pedidoId: generarIdPedido(),
-        fecha: document.getElementById("fecha").value,      // "2026-07-13"
+        fecha: document.getElementById("fecha").value,      
         cliente: document.getElementById("cliente").value.trim(),
         direccion: direccion,
         nota: document.getElementById("nota").value.trim(),
@@ -541,10 +487,6 @@
       };
     }
 
-    // Arma el texto del mensaje de WhatsApp con el detalle del pedido.
-    // Nota: a propósito NO usa emojis. Los emojis viajan mal por el
-    // parámetro ?text= en algunos WhatsApp de escritorio (llegan como �),
-    // y no controlamos qué cliente de WhatsApp usa cada persona.
     function construirMensajeWhatsApp(pedido) {
       const partes = [
         `*Nuevo pedido — ${CONFIG.nombreNegocio}*`,
@@ -554,14 +496,11 @@
         ``
       ];
 
-      // Personas distintas que aparecen en los items, en orden.
       const nombres = [...new Set(pedido.items.map(i => i.persona))];
 
       if (nombres.length === 1) {
-        // Pedido individual: lista simple, sin repetir el nombre.
         pedido.items.forEach(i => partes.push(`• ${i.cantidad} x ${i.nombre} — ${precio(i.subtotal)}`));
       } else {
-        // Pedido grupal: los productos agrupados por persona, con su subtotal.
         nombres.forEach(nombre => {
           const suyos = pedido.items.filter(i => i.persona === nombre);
           const subtotal = suyos.reduce((s, i) => s + i.subtotal, 0);
@@ -569,7 +508,7 @@
           suyos.forEach(i => partes.push(`• ${i.cantidad} x ${i.nombre} — ${precio(i.subtotal)}`));
           partes.push(``);
         });
-        partes.pop(); // quita la línea en blanco final del bucle
+        partes.pop(); 
       }
 
       partes.push(``, `*Total: ${precio(pedido.total)}*`);
@@ -578,12 +517,6 @@
       return partes.join("\n");
     }
 
-    /* ---------- Envío ---------- */
-
-    // Guarda el pedido en Google Sheets llamando al Apps Script.
-    // Usamos Content-Type "text/plain" a propósito: así el navegador hace
-    // una "solicitud simple" y evita el preflight de CORS que Apps Script
-    // no sabe responder. El detalle está explicado en la documentación.
     async function guardarEnSheets(pedido) {
       const respuesta = await fetch(CONFIG.urlBackend, {
         method: "POST",
@@ -599,15 +532,12 @@
     async function enviarPedido() {
       const boton = document.getElementById("btn-enviar");
 
-      // Validaciones mínimas antes de enviar
       const cliente = document.getElementById("cliente").value.trim();
       if (!cliente) {
         mostrarEstado("Escribe el nombre de quien hace el pedido 🙂", "error");
         document.getElementById("cliente").focus();
         return;
       }
-      // La dirección es obligatoria solo para domicilios (WhatsApp marcado):
-      // quien pide desde la app no está en el negocio.
       const esDomicilio = document.getElementById("enviar-whatsapp").checked;
       if (esDomicilio && !document.getElementById("direccion").value.trim()) {
         mostrarEstado("Escribe la dirección de entrega para el domicilio 🙂", "error");
@@ -620,7 +550,6 @@
       boton.disabled = true;
       boton.textContent = "Enviando…";
 
-      // 1) Guardar en Google Sheets (si el backend está configurado)
       let guardado = false;
       if (CONFIG.urlBackend.startsWith("https://")) {
         try {
@@ -631,21 +560,21 @@
         }
       }
 
-      // 2) Abrir WhatsApp con el mensaje listo (si el usuario lo dejó marcado)
-      if (document.getElementById("enviar-whatsapp").checked) {
-        const url = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(construirMensajeWhatsApp(pedido))}`;
-        window.open(url, "_blank");
-      }
+      const urlWhatsApp = esDomicilio
+        ? `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(construirMensajeWhatsApp(pedido))}`
+        : null;
 
-      // 3) Informar el resultado y limpiar el carrito si todo salió bien
       if (guardado) {
         mostrarEstado(`✅ Pedido ${pedido.pedidoId} registrado. ¡Gracias, ${cliente}!`, "exito");
         limpiarCarrito();
+        if (urlWhatsApp) window.location.href = urlWhatsApp;
       } else if (CONFIG.urlBackend.startsWith("https://")) {
-        mostrarEstado("⚠️ El pedido se envió por WhatsApp pero no se pudo guardar en el historial. Intenta de nuevo o avisa al administrador.", "error");
+        mostrarEstado("⚠️ No se pudo guardar en el historial. Enviando por WhatsApp de todas formas…", "error");
+        if (urlWhatsApp) setTimeout(() => { window.location.href = urlWhatsApp; }, 2500);
       } else {
         mostrarEstado("Pedido enviado por WhatsApp. (El historial aún no está conectado: falta la URL del backend en CONFIG).", "exito");
         limpiarCarrito();
+        if (urlWhatsApp) window.location.href = urlWhatsApp;
       }
 
       boton.textContent = "Hacer pedido";
@@ -653,7 +582,7 @@
     }
 
     function limpiarCarrito() {
-      personas = [crearPersona(null)]; // vuelve a quedar solo el responsable
+      personas = [crearPersona(null)]; 
       personaActiva = 0;
       document.getElementById("nota").value = "";
       document.getElementById("direccion").value = "";
@@ -662,25 +591,19 @@
       actualizarBarra();
     }
 
-    /* Muestra u oculta el campo de dirección según el tipo de venta:
-       casilla marcada = domicilio (dirección obligatoria),
-       desmarcada = venta en el local (no aplica dirección). */
     function alternarCampoDireccion() {
       const esDomicilio = document.getElementById("enviar-whatsapp").checked;
       document.getElementById("campo-direccion").style.display = esDomicilio ? "" : "none";
     }
 
-    /* ---------- Arranque ---------- */
 
     function iniciar() {
-      // Textos del encabezado desde la configuración
       document.title = `${CONFIG.nombreNegocio} · Haz tu pedido`;
       document.getElementById("titulo-negocio").textContent = CONFIG.nombreNegocio;
       document.getElementById("lema-negocio").textContent = CONFIG.lema;
 
-      // La fecha del pedido arranca en "hoy" (hora local del dispositivo)
       const hoy = new Date();
-      hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset()); // corrige a hora local
+      hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset()); 
       document.getElementById("fecha").value = hoy.toISOString().slice(0, 10);
 
       renderizarMenu();
@@ -690,8 +613,6 @@
       document.getElementById("enviar-whatsapp").addEventListener("change", alternarCampoDireccion);
       alternarCampoDireccion();
 
-      // Pedido grupal: agregar persona con el botón o con la tecla Enter,
-      // y refrescar el nombre del primer chip mientras se escribe el cliente.
       document.getElementById("btn-confirmar-persona").addEventListener("click", agregarPersona);
       document.getElementById("nueva-persona").addEventListener("keydown", e => {
         if (e.key === "Enter") agregarPersona();
